@@ -15,7 +15,9 @@ public class ChestKiller : MonoBehaviour
     private PlayerInventory _playerInventory;
     private bool _chestOpenerRunning;
     private bool DebugMode;
-    private bool killMimicCompleted;
+    // Missing info must never make the hunt open a Mimic on purpose, so default to "already unlocked".
+    private bool killMimicCompleted = true;
+    private bool _achievementSearchDone;
     private bool MultiplyArmoryChests;
     private bool PerfectChestHuntOn;
 
@@ -29,9 +31,11 @@ public class ChestKiller : MonoBehaviour
         _chestHuntManager = gameObject.GetComponentInChildren<ChestHuntManager>();
         _playerInventory = PlayerInventory.instance;
 
+        if (_chestHuntManager == null)
+            Plugin.Logger.Warning("ChestHuntManager not found under 'Chest Hunt'");
+
         MultiplyArmoryChests = Plugin.Settings.MultiplyArmoryChests.Value;
         PerfectChestHuntOn = Plugin.Settings.PerfectChestsHuntOn.Value;
-        InitialiseAchievements();
     }
 
     private void Start() {
@@ -43,15 +47,51 @@ public class ChestKiller : MonoBehaviour
             });
     }
 
-    private void InitialiseAchievements() 
+    // Achievements are still empty when Awake runs (since the October 2026 game update), so search once they are loaded.
+    private void TryFindKillMimicAchievement()
     {
+        if (_playerInventory == null || _playerInventory.achievements == null || _playerInventory.achievements.Length == 0)
+            return;
+
+        _achievementSearchDone = true;
+
+        Achievement lowestMimicsSlayed = null;
         foreach (Achievement achievement in _playerInventory.achievements)
         {
             if (achievement.name == "achievement_that_was_fun")
-            {
                 killMimic = achievement;
-                killMimicCompleted = killMimic.unlocked;
-            }
+
+            if (achievement.achievementType == AchievementType.MimicsSlayed
+                && (lowestMimicsSlayed == null || achievement.target < lowestMimicsSlayed.target))
+                lowestMimicsSlayed = achievement;
+        }
+
+        if (killMimic == null)
+            killMimic = lowestMimicsSlayed;
+
+        if (killMimic != null)
+        {
+            Plugin.Logger.Msg($"Kill Mimic achievement: name='{killMimic.name}' target={killMimic.target} unlocked={killMimic.unlocked}");
+            return;
+        }
+
+        Plugin.Logger.Warning("Kill Mimic achievement not found, Mimics will not be opened on purpose");
+        LogMimicAchievementCandidates();
+    }
+
+    private void LogMimicAchievementCandidates()
+    {
+        Plugin.Logger.Msg($"{_playerInventory.achievements.Length} achievements loaded. Candidates:");
+        foreach (Achievement achievement in _playerInventory.achievements)
+        {
+            string name = achievement.name ?? "";
+            bool candidate = achievement.achievementType == AchievementType.MimicsSlayed
+                || name.Contains("mimic", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("fun", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("chest", StringComparison.OrdinalIgnoreCase);
+            if (!candidate) continue;
+
+            Plugin.Logger.Msg($"  name='{achievement.name}' type={achievement.achievementType} target={achievement.target} unlocked={achievement.unlocked} localizedName='{achievement.localizedName}'");
         }
     }
 
@@ -78,7 +118,10 @@ public class ChestKiller : MonoBehaviour
         if (!GameState.IsChestHunt())
         {
             _chestOpenerRunning = false;
-            killMimicCompleted = killMimic.unlocked;
+            if (!_achievementSearchDone)
+                TryFindKillMimicAchievement();
+            if (killMimic != null)
+                killMimicCompleted = killMimic.unlocked;
         }
         else if (PerfectChestHuntOn)
         {

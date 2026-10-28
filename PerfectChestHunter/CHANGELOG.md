@@ -1,3 +1,9 @@
+### Version 2.1.0
+
+- Perfect mode now opens chests in resource-maximising order: Duplicate Next Pick, then (Armory chests if maximised), Multiplier Increaser, Multipliers (best first), resource chests (Both, CPS, Slayer Points), then the rest. Duplicate bonuses now land on the Multiplier Increaser instead of being spent on Armory chests or the best Multiplier
+- Debug builds open chests in the same order as Release builds
+- Debug log shows the multiplier of Multiplier chests
+
 ### Version 2.0.1
 
 - Fixed NullReferenceException spam in `ChestKiller.Update()` after the October 2026 game update (#10)

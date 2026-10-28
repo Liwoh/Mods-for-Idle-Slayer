@@ -242,21 +242,29 @@ public class ChestKiller : MonoBehaviour
         }
     }
 
+    // Dupes first so their bonus lands on the next pick: Armory chests if maximised, otherwise the Multiplier Increaser
+    // (or the best Multiplier when there is none). The Increaser then boosts the Multipliers opened after it.
     private IEnumerator OpenNormalChestsPerfectly()
     {
-#if !DEBUG
-        yield return OpenAllChestsOfType(ChestType.MultiplierIncreaser, defaultChestOpeningDelay);
-#endif
         yield return OpenDupeChests();
 
         if (Plugin.Settings.MultiplyArmoryChests.Value)
             yield return OpenAllChestsOfType(ChestType.ArmoryChest, defaultChestOpeningDelay);
 
+        yield return OpenAllChestsOfType(ChestType.MultiplierIncreaser, defaultChestOpeningDelay);
+
         var bestChest = GetBestMultiplierChest();
 
         if (bestChest != null && !bestChest.opened)
+        {
+            if (DebugMode) Plugin.Logger.Msg($"Processing best Multiplier chest: {bestChest.multiplier}");
             yield return OpenChest(bestChest.chestObject, defaultChestOpeningDelay);
+        }
 
+        yield return OpenAllChestsOfType(ChestType.Multiplier, defaultChestOpeningDelay);
+        yield return OpenAllChestsOfType(ChestType.Both, defaultChestOpeningDelay);
+        yield return OpenAllChestsOfType(ChestType.CPS, defaultChestOpeningDelay);
+        yield return OpenAllChestsOfType(ChestType.SlayerPoints, defaultChestOpeningDelay);
         yield return OpenAllChestsOfType(ChestType.Mimic, defaultChestOpeningDelay, exclude: true);
     }
 
@@ -320,7 +328,9 @@ public class ChestKiller : MonoBehaviour
             if (!chest.chestObject) continue;
             if (chest.opened) continue;
             if (exclude ? chest.type == type : chest.type != type) continue;
-            if (DebugMode) Plugin.Logger.Msg($"Processing chest of type: {chest.type}");
+            if (DebugMode) Plugin.Logger.Msg(chest.type == ChestType.Multiplier
+                ? $"Processing chest of type: {chest.type} (multiplier {chest.multiplier})"
+                : $"Processing chest of type: {chest.type}");
             yield return OpenChest(chest.chestObject, delay);
         }
     }

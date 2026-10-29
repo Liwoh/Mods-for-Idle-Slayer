@@ -111,8 +111,11 @@ namespace ArmoryManager
                 SetWeaponLevel(weapon);
         }
         
-        private static void SetWeaponLevel(WeaponItemInventory weapon) =>
-            weapon?.item?.levelRequirementIncreasePerLevel = Plugin.Config.RequirementPerLevel.Value;
+        private static void SetWeaponLevel(WeaponItemInventory weapon)
+        {
+            if (weapon != null && weapon.item != null)
+                weapon.item.levelRequirementIncreasePerLevel = Plugin.Config.RequirementPerLevel.Value;
+        }
 
         private IEnumerator ResetBreakerDuringRunner()
         {
@@ -237,6 +240,14 @@ namespace ArmoryManager
                 // grab the ItemObject if there is one anywhere under this slot
                 var io = slot.GetComponentInChildren<ItemObject>();
 
+                // Keep-count slots spare unique weapons; the game's
+                // always-break slots must still be cleared.
+                bool alwaysBreakSlot = i >= slots.Count - minimumBreak;
+                if (io != null && io.currentItem != null && !alwaysBreakSlot &&
+                    Plugin.Config.KeepBestUniqueWeapons.Value &&
+                    !IsCoveredByAnotherWeapon(io.currentItem))
+                    continue;
+
                 if (io != null && io.currentItem != null)
                 {
                     ProcessBreakItem(io.currentItem);
@@ -275,8 +286,14 @@ namespace ArmoryManager
 
                 if (toBreak.currentLevel > 4) continue; // skip items above level 4
 
+                if (Plugin.Config.KeepBestUniqueWeapons.Value)
+                {
+                    shouldBreak = IsCoveredByAnotherWeapon(toBreak) &&
+                                  (Plugin.Config.BreakDupesEnabled.Value ||
+                                   (Plugin.Config.BreakLowLevelEnabled.Value && toBreak.currentLevel <= 3));
+                }
                 // 1) Break all level-3 and lower
-                if (toBreak.currentLevel <= 3 && Plugin.Config.BreakLowLevelEnabled.Value)
+                else if (toBreak.currentLevel <= 3 && Plugin.Config.BreakLowLevelEnabled.Value)
                     shouldBreak = true;
 
                 else if (Plugin.Config.BreakDupesEnabled.Value)
@@ -369,6 +386,38 @@ namespace ArmoryManager
                 }
             }
         }
+        // True when another weapon of the same equipment does everything this
+        // one does: same or better excellence, every option and skill, and the
+        // same or a higher level. Exact copies at the same level keep one.
+        private bool IsCoveredByAnotherWeapon(WeaponItemInventory weapon)
+        {
+            foreach (var other in _weaponsManager.CurrentItems().ToArray())
+            {
+                if (other == null || other.uid == weapon.uid) continue;
+                if (other.item.name != weapon.item.name) continue;
+                if (weapon.isExcellent && !other.isExcellent) continue;
+                if (other.currentLevel < weapon.currentLevel) continue;
+                if (!ContainsAll(other.currentOptions, weapon.currentOptions)) continue;
+                if (!ContainsAll(other.currentSkills, weapon.currentSkills)) continue;
+
+                bool sameConfig = other.isExcellent == weapon.isExcellent &&
+                                  other.currentOptions.Count == weapon.currentOptions.Count &&
+                                  other.currentSkills.Count == weapon.currentSkills.Count;
+                if (!sameConfig || other.currentLevel > weapon.currentLevel || other.uid < weapon.uid)
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool ContainsAll<T>(
+            Il2CppSystem.Collections.Generic.List<T> container,
+            Il2CppSystem.Collections.Generic.List<T> required)
+        {
+            foreach (var entry in required)
+                if (!container.Contains(entry)) return false;
+            return true;
+        }
+
         private void ProcessBreakItem(WeaponItemInventory currentItem)
         {
             // 1) Calculate refunds

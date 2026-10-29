@@ -37,6 +37,7 @@ namespace ArmoryManager
         bool lastIsRunner;
         static bool triggerBreakCheck;
         static bool AscendCalled = false;
+        readonly HashSet<uint> _loggedKeptUids = new();
 
         public void Awake()
         {
@@ -244,9 +245,23 @@ namespace ArmoryManager
                 // always-break slots must still be cleared.
                 bool alwaysBreakSlot = i >= slots.Count - minimumBreak;
                 if (io != null && io.currentItem != null && !alwaysBreakSlot &&
-                    Plugin.Config.KeepBestUniqueWeapons.Value &&
-                    !IsCoveredByAnotherWeapon(io.currentItem))
-                    continue;
+                    Plugin.Config.KeepBestUniqueWeapons.Value)
+                {
+                    var cover = FindCoveringWeapon(io.currentItem);
+                    if (cover == null)
+                    {
+                        if (_loggedKeptUids.Add(io.currentItem.uid))
+                            Plugin.Logger.Msg($"[Armory] Kept beyond keep count {_keep} (slot {i + 1}): unique {Describe(io.currentItem)}");
+                        continue;
+                    }
+                    Plugin.Logger.Msg($"[Armory] Broke (slot {i + 1}, beyond keep count {_keep}): {Describe(io.currentItem)}; covered by {Describe(cover)}");
+                }
+                else if (io != null && io.currentItem != null)
+                {
+                    Plugin.Logger.Msg(alwaysBreakSlot
+                        ? $"[Armory] Broke (slot {i + 1}, game always-break slot): {Describe(io.currentItem)}"
+                        : $"[Armory] Broke (slot {i + 1}, beyond keep count {_keep}): {Describe(io.currentItem)}");
+                }
 
                 if (io != null && io.currentItem != null)
                 {
@@ -288,9 +303,16 @@ namespace ArmoryManager
 
                 if (Plugin.Config.KeepBestUniqueWeapons.Value)
                 {
-                    shouldBreak = IsCoveredByAnotherWeapon(toBreak) &&
+                    var cover = FindCoveringWeapon(toBreak);
+                    shouldBreak = cover != null &&
                                   (Plugin.Config.BreakDupesEnabled.Value ||
                                    (Plugin.Config.BreakLowLevelEnabled.Value && toBreak.currentLevel <= 3));
+                    if (shouldBreak)
+                        Plugin.Logger.Msg($"[Armory] Broke (slot {i + 1}): {Describe(toBreak)}; covered by {Describe(cover)}");
+                    else if (cover == null && toBreak.currentLevel <= 3 &&
+                             Plugin.Config.BreakLowLevelEnabled.Value &&
+                             _loggedKeptUids.Add(toBreak.uid))
+                        Plugin.Logger.Msg($"[Armory] Kept low level (slot {i + 1}): unique {Describe(toBreak)}");
                 }
                 // 1) Break all level-3 and lower
                 else if (toBreak.currentLevel <= 3 && Plugin.Config.BreakLowLevelEnabled.Value)
@@ -368,6 +390,8 @@ namespace ArmoryManager
 
                 if (shouldBreak)
                 {
+                    if (!Plugin.Config.KeepBestUniqueWeapons.Value)
+                        Plugin.Logger.Msg($"[Armory] Broke (slot {i + 1}, low level or duplicate): {Describe(toBreak)}");
                     ProcessBreakItem(toBreak);
 
                     // wait for the ItemObject to be removed from this slot
@@ -389,7 +413,7 @@ namespace ArmoryManager
         // True when another weapon of the same equipment does everything this
         // one does: same or better excellence, every option and skill, and the
         // same or a higher level. Exact copies at the same level keep one.
-        private bool IsCoveredByAnotherWeapon(WeaponItemInventory weapon)
+        private WeaponItemInventory FindCoveringWeapon(WeaponItemInventory weapon)
         {
             foreach (var other in _weaponsManager.CurrentItems().ToArray())
             {
@@ -404,9 +428,23 @@ namespace ArmoryManager
                                   other.currentOptions.Count == weapon.currentOptions.Count &&
                                   other.currentSkills.Count == weapon.currentSkills.Count;
                 if (!sameConfig || other.currentLevel > weapon.currentLevel || other.uid < weapon.uid)
-                    return true;
+                    return other;
             }
-            return false;
+            return null;
+        }
+
+        private static string Describe(WeaponItemInventory weapon)
+        {
+            var options = new List<string>();
+            foreach (var option in weapon.currentOptions)
+                options.Add(option.benefit != null ? $"{option.benefit.name} {option.value:0.##}" : "?");
+            var skills = new List<string>();
+            foreach (var skill in weapon.currentSkills)
+                skills.Add(skill != null ? skill.name : "?");
+            string equipment = weapon.item.forEquipment != null ? weapon.item.forEquipment.name : "?";
+            return $"{weapon.item.name} [{equipment}] +{weapon.currentLevel}" +
+                   (weapon.isExcellent ? " excellent" : string.Empty) +
+                   $"; options=[{string.Join(", ", options)}]; skills=[{string.Join(", ", skills)}]";
         }
 
         private static bool ContainsAll<T>(

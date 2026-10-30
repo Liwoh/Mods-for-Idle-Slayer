@@ -51,9 +51,24 @@ namespace ArmoryManager
             minimumBreak = SetMinWeaponBreak();
         }
 
-        public void Start()
+        bool _initialized;
+        float _nextInitAttempt;
+
+        public void Start() => TryInitialize();
+
+        // After a cloud-save reload the armory slots may not exist yet when
+        // Start runs (NullReferenceException on 2026-10-31); LateUpdate retries.
+        private void TryInitialize()
         {
-            _initialSlotColor = _weaponsManager.allSlots[0].GetComponent<Image>().color;
+            if (_weaponsManager == null) _weaponsManager = WeaponsManager.instance;
+            if (_playerInventory == null) _playerInventory = PlayerInventory.instance;
+            if (_dropsManager == null) _dropsManager = DropsManager.instance;
+            var slots = _weaponsManager != null ? _weaponsManager.allSlots : null;
+            if (slots == null || slots.Length == 0 || slots[0] == null) return;
+            var slotImage = slots[0].GetComponent<Image>();
+            if (slotImage == null) return;
+            _initialSlotColor = slotImage.color;
+            _initialized = true;
 
             if (Plugin.Config.LowerBoundOfWeapons.Value > _weaponsManager.GetMaxSlots())
                 Plugin.Config.LowerBoundOfWeapons.Value = (int)_weaponsManager.GetMaxSlots() - 10;
@@ -137,6 +152,14 @@ namespace ArmoryManager
 
         public void LateUpdate()
         {
+            if (!_initialized)
+            {
+                if (Time.unscaledTime < _nextInitAttempt) return;
+                _nextInitAttempt = Time.unscaledTime + 1f;
+                TryInitialize();
+                if (!_initialized) return;
+                Plugin.Logger.Msg("[Armory] Initialised after a delayed start.");
+            }
 
             if (_playerInventory.armoryItemAscendingHeightsChance < 100)
                 _playerInventory.armoryItemAscendingHeightsChance = 100;

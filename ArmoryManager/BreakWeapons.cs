@@ -161,6 +161,8 @@ namespace ArmoryManager
                 Plugin.Logger.Msg("[Armory] Initialised after a delayed start.");
             }
 
+            ArmoryReport.Update(_weaponsManager);
+
             if (_playerInventory.armoryItemAscendingHeightsChance < 100)
                 _playerInventory.armoryItemAscendingHeightsChance = 100;
             if (_playerInventory.increaseBonusStageArmoryChestsChance < 100)

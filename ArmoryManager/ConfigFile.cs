@@ -17,6 +17,7 @@ internal sealed class ConfigFile(string configName) : BaseConfig(configName)
 
     internal MelonPreferences_Entry<KeyCode> DecreaseWeaponsToKeep;
     internal MelonPreferences_Entry<KeyCode> IncreaseWeaponsToKeep;
+    internal MelonPreferences_Entry<KeyCode> ArmoryReportKey;
 
     protected override void SetBindings()
     {
@@ -38,6 +39,8 @@ internal sealed class ConfigFile(string configName) : BaseConfig(configName)
             "Key to decrease the number of weapons to keep in Armory");
         IncreaseWeaponsToKeep = Bind("Increase Weapons To Keep", KeyCode.Equals,
             "Key to increase the number of weapons to keep in Armory");
+        ArmoryReportKey = Bind("Armory Report Key", KeyCode.F8,
+            "Key to write a new armory report to UserData/ArmoryReport. One is also written 30 seconds after each launch");
         CurrentNumberOfWeaponsToKeep = Bind("CurrentNumberOfWeaponsToKeep", 15,
             "Do Not Change - Stored Value of Weapons to Keep");
     }

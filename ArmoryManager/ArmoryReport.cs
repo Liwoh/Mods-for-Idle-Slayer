@@ -113,25 +113,27 @@ internal static class ArmoryReport
             ["equipped"] = Try(() => weapon.IsEquipped()),
             ["inLoadout"] = Try(() => manager.IsItemInAnyLoadout(weapon.uid)),
             ["isKeyItem"] = Try(() => manager.IsKey(weapon)),
-            ["requirement"] = Try(() => weapon.GetLevelRequirement(level)),
-            ["requirementNextLevel"] = Try(() => weapon.GetLevelRequirement(level + 1)),
-            ["meetsRequirement"] = Try(() => weapon.HasRequirements(level)),
-            ["meetsRequirementNextLevel"] = Try(() => weapon.HasRequirements(level + 1)),
+            ["requirement"] = Try(() => weapon.GetLevelRequirement(0)),
+            ["requirementNextLevel"] = Try(() => weapon.GetLevelRequirement(1)),
+            ["meetsRequirement"] = Try(() => weapon.HasRequirements(0)),
+            ["meetsRequirementNextLevel"] = Try(() => weapon.HasRequirements(1)),
+            ["equippedForGameplay"] = Try(() => manager.IsEquippedForGameplay(weapon, false)),
             ["scrapValue"] = Try(() => weapon.GetScrapValue()),
             ["divinityRefund"] = Try(() => weapon.CalculateDivinityPointsRefund()),
             ["rawOptions"] = Benefits(weapon.currentOptions),
             ["skills"] = Skills(weapon.currentSkills),
-            ["description"] = Try(() => weapon.GetDescription(level, false, false, false, false)),
-            ["effectsNow"] = Effects(weapon, level),
-            ["effectsNextLevel"] = Effects(weapon, level + 1),
+            ["description"] = Try(() => weapon.GetDescription(0, false, false, false, false)),
+            ["effectsNow"] = Effects(weapon, 0),
+            ["effectsNextLevel"] = Effects(weapon, 1),
         };
     }
 
-    static object Effects(WeaponItemInventory weapon, int level) => new Dictionary<string, object>
+    // The game's level parameter is added to the weapon's current level.
+    static object Effects(WeaponItemInventory weapon, int levelsAhead) => new Dictionary<string, object>
     {
-        ["permanent"] = Try(() => Benefits(weapon.GetPermanentBenefitsWithLevel(level))),
-        ["options"] = Try(() => Benefits(weapon.GetOptionBenefitsWithLevel(level))),
-        ["permanentSkills"] = Try(() => Skills(weapon.GetPermanentSkillsWithLevel(level))),
+        ["permanent"] = Try(() => Benefits(weapon.GetPermanentBenefitsWithLevel(levelsAhead))),
+        ["options"] = Try(() => Benefits(weapon.GetOptionBenefitsWithLevel(levelsAhead))),
+        ["permanentSkills"] = Try(() => Skills(weapon.GetPermanentSkillsWithLevel(levelsAhead))),
     };
 
     static List<object> Catalogue()
